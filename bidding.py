@@ -7,23 +7,25 @@ team_list = pd.read_csv("./data/redis-team.csv")
 team_creds_list = team_list['Creds'].tolist()
 
 # Main Bidding Logic
-
-def bid():
+def bid(team_name):
     amount = st.number_input("Bid Amount", value=100, step=100, min_value=100, label_visibility="collapsed")
-    st.button("Bid", use_container_width=True, type="primary")
-
+    bid_success = st.button("Bid", use_container_width=True, type="primary")
+    bid_info = {team_name: amount}
+    
+    # FIXME: create this function connecting to redis server
+    #send_message(bid_info)
 
     # FIXME: add button logic
     co1, co2 = st.columns(2)
-    co1.button("Exit bid", use_container_width=True)
+    #co1.button("Exit bid", use_container_width=True)
     co2.button("Refresh", use_container_width=True)
 
-    # TODO: add logic to bid success
-    bid_success = True
     if bid_success:
+        st.write(bid_info)
         st.toast(f'Bid for {amount} was successfull!', icon='✅')
     else:
-        st.toast(f'Bid for {amount} unsuccessfull!', icon='❌')
+        st.info("Press Bid button to enter")
+        #st.toast(f'Bid for {amount} unsuccessfull!', icon='❌')
 
 
 # Login Check Screen
@@ -33,6 +35,6 @@ if login_code:
         team_index = team_creds_list.index(int(login_code))
         team_name = team_list['Team'][team_index]
         st.subheader(f"Welcome {team_name},")
-        bid()
+        bid(team_name)
     except:
         st.warning("Incorrect Code. Try again")
