@@ -6,6 +6,18 @@ import json
 import time
 import datetime
 
+# streamlit
+st.set_page_config(
+    'Smart Auction Portal',
+    '🪙',
+    layout='centered',
+    initial_sidebar_state='collapsed',
+    menu_items={
+        "Get Help": "https://sauction.streamlit.app",
+        "About": "Auction Portal App",
+    },
+)
+
 def ms_to_datetime(milliseconds):
     seconds = milliseconds / 1000
     readable_time = datetime.datetime.fromtimestamp(seconds)
@@ -81,6 +93,8 @@ def add_to_stream(auction_name, team_name, bid_amount):
 auction_name = "jpls5"
 team_name = "Team 1"
 bid_amount = 200
+
+st.divider()
 
 if st.button("Test Bid"):
     resp = add_to_stream(auction_name, team_name, bid_amount)

@@ -1,0 +1,9 @@
+[runner]
+magicEnabled = false
+
+[server]
+maxUploadSize = 10
+runOnSave = true
+
+[ui]
+hideTopBar = true
