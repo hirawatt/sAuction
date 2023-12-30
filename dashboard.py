@@ -26,10 +26,16 @@ def ms_to_datetime(milliseconds):
     formatted_time = readable_time.strftime("%H:%M:%S.%f") #%Y-%m-%d
     return formatted_time
 
-r = redis.Redis(
-    host=st.secrets['redis']['host'],
-    port=st.secrets['redis']['port'],
-    password=st.secrets['redis']['password'])
+@st.cache_resource
+def get_database_session():
+    # Create a database session object that points to the URL.
+    r = redis.Redis(
+        host=st.secrets['redis']['host'],
+        port=st.secrets['redis']['port'],
+        password=st.secrets['redis']['password'])
+    return r
+
+r = get_database_session()
 
 # Auction Dashboard
 # FIXME: make this dynamic
@@ -87,6 +93,7 @@ def stream_listener(redis_client, stream_name, callback):
 def process_message(fields):
     print(fields)
 
+#stream_listener(r, stream_name, process_message)
 t = Thread(target=stream_listener, args=(r, stream_name, process_message))
 add_script_run_ctx(t)
 t.start()
