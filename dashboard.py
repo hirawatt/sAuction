@@ -82,27 +82,38 @@ def stream_listener(redis_client, stream_name, callback):
                         'id': message_id.decode("utf-8"),
                         'timestamp': dt,
                         'team_name': values[0],
-                        'bid': values[1]
+                        'bid': int(values[1])
                     })
                 #callback(fields)
             # Create a DataFrame
             df = pd.DataFrame(data)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ns')
             df = df.set_index('timestamp')
             
             # add logic for choosing the best bid
             df_sorted = df.sort_values(by='bid', ascending=False)
             max_bid_index = df_sorted['bid'].idxmax()
             max_bid = df.loc[max_bid_index, 'bid']
+            # FIXME: below code for cloud!
+            try:
+                max_bid_int = int(max_bid.iloc[0, 0])
+            except:
+                print("-----------error 1-----------")
+                max_bid_int = max_bid
             # add logic to update dashboard with latest data
-            if int(max_bid) > int(st.session_state.last_bid):
-                st.session_state.winning_team = df.loc[max_bid_index, 'team_name']
-                st.session_state.last_bid = int(max_bid) # df.loc[df['team_name'] == st.session_state.winning_team, 'bid']
+            try:
+                if max_bid_int > st.session_state.last_bid:
+                    st.session_state.winning_team = df.loc[max_bid_index, 'team_name']
+                    st.session_state.last_bid = max_bid_int
+            except:
+                print("----------error 2---------")
+                print(max_bid_int)
+                print(type(max_bid_int), type(st.session_state.last_bid))
             
             print(df_sorted)
             st.session_state.data = df_sorted
             print("----------------------NEW----------------------")
-            time.sleep(1)
+            time.sleep(5)
         else:
             print("No messages found in the stream.")
 
