@@ -1,10 +1,12 @@
 import streamlit as st
 import pandas as pd
 import redis
-import threading
+from threading import Thread
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 import json
 import time
 import datetime
+import numpy as np
 
 # streamlit
 st.set_page_config(
@@ -41,61 +43,67 @@ c1.write("Winning Team")
 c1.subheader(f"{winning_team}")
 c2.metric(label="Bid", value=f"{last_bid}")
 st.divider()
+st.button("Refresh", use_container_width=True)
 
 st.write("Received bids:")
-test_data = r.xread({stream_name: 0})
-if test_data:
-    for message_id, fields in test_data:
-        #st.write(f"Message ID: {message_id}")
-        co1, co2, co3 = st.columns(3)
-        for field_name, field_value in fields:
-            field_name_str = field_name.decode("utf-8")
-            #st.write(field_value.values())
-            # convert millisecond data to readble format
-            ms = field_name_str.split("-")[0]
-            co1.write(ms_to_datetime(int(ms)))
-            values = []
-            for key, value in field_value.items():
-                key_str = key.decode("utf-8")
-                value_str = value.decode("utf-8")
-                values.append(value_str)
-            co2.write(values[0])
-            co3.write(values[1])
-            #st.write(f"- {field_name_str}: {field_value}")
-else:
-    st.write("No messages found in the stream.")
+
+if 'data' not in st.session_state:
+    st.session_state.data = pd.DataFrame()
+st.write(st.session_state.data)
+# FIXME: add rerun/refresh frontend code
 
 def stream_listener(redis_client, stream_name, callback):
     while True:
-        messages = redis_client.xread({stream_name: ">"}, count=10, block=0)
+        data = []
+        messages = redis_client.xread({stream_name: 0}) #, count=10, block=0
         if messages:
-            for message in messages[0][1]:
-                callback(message)
-        time.sleep(0.1)  # Adjust sleep time as needed
+            for message_id, fields in messages:
+                for field_name, field_value in fields:
+                    field_name_str = field_name.decode("utf-8")
+                    ms = field_name_str.split("-")[0]
+                    datetime = np.datetime64(ms, 'ns')
+                    values = []
+                    for key, value in field_value.items():
+                        value_str = value.decode("utf-8")
+                        values.append(value_str)
+                    data.append({
+                        'id': message_id.decode("utf-8"),
+                        'timestamp': datetime,
+                        'team_name': values[0],
+                        'bid': values[1]
+                    })
+                #callback(fields)
+            # Create a DataFrame
+            df = pd.DataFrame(data)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            print(df)
+            st.session_state.data = df
+            print("----------------------NEW----------------------")
+            time.sleep(1)
+        else:
+            print("No messages found in the stream.")
 
-def process_message(message):
-    data = message['fields']
-    # Do something with the data
-    print(data)
+# Do something with the data
+def process_message(fields):
+    print(fields)
 
-thread = threading.Thread(target=stream_listener, args=(r, stream_name, process_message))
-thread.start()
+t = Thread(target=stream_listener, args=(r, stream_name, process_message))
+add_script_run_ctx(t)
+t.start()
 
 # testing
-def add_to_stream(auction_name, team_name, bid_amount):
-    res3 = r.xadd(
+def send_bid(auction_name, team_name, bid_amount):
+    resp = r.xadd(
         f"auction:{auction_name}",
         {"team": f"{team_name}", "bid": f"{bid_amount}"},
     )
-    return res3 # >>> 1692629613374-0
-
-# bidding data
-auction_name = "jpls5"
-team_name = "Team 1"
-bid_amount = 200
+    return resp # >>> 1692629613374-0
 
 st.divider()
-
 if st.button("Test Bid"):
-    resp = add_to_stream(auction_name, team_name, bid_amount)
+    # bidding data
+    auction_name = "jpls5"
+    team_name = "Team 1"
+    bid_amount = 200
+    resp = send_bid(auction_name, team_name, bid_amount)
     st.write(resp)
