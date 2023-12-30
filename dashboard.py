@@ -5,8 +5,7 @@ from threading import Thread
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 import json
 import time
-import datetime
-import numpy as np
+from datetime import datetime
 
 # streamlit
 st.set_page_config(
@@ -22,7 +21,7 @@ st.set_page_config(
 
 def ms_to_datetime(milliseconds):
     seconds = milliseconds / 1000
-    readable_time = datetime.datetime.fromtimestamp(seconds)
+    readable_time = datetime.fromtimestamp(seconds)
     formatted_time = readable_time.strftime("%H:%M:%S.%f") #%Y-%m-%d
     return formatted_time
 
@@ -40,23 +39,30 @@ r = get_database_session()
 # Auction Dashboard
 # FIXME: make this dynamic
 stream_name = "auction:jpls5"
-last_bid = 1000
-winning_team = "Team 1"
+if 'last_bid' not in st.session_state:
+    st.session_state.last_bid = 100
+if 'winning_team' not in st.session_state:
+    st.session_state.winning_team = "START BIDDING"
 
 st.header("Winning Bid")
 c1, c2 = st.columns(2)
 c1.write("Winning Team")
-c1.subheader(f"{winning_team}")
-c2.metric(label="Bid", value=f"{last_bid}")
+c1.subheader(f"{st.session_state.winning_team}")
+c2.metric(label="Bid", value=f"{st.session_state.last_bid}")
 st.divider()
-st.button("Refresh", use_container_width=True)
+co1, co2 = st.columns(2)
+# refresh page for data to reload
+co1.button("Refresh", use_container_width=True)
+# delete all stream data
+if co2.button("Reset", use_container_width=True):
+    r.xtrim(stream_name, 0)
 
 st.write("Received bids:")
 
 if 'data' not in st.session_state:
     st.session_state.data = pd.DataFrame()
-st.write(st.session_state.data)
-# FIXME: add rerun/refresh frontend code
+st.dataframe(st.session_state.data, use_container_width=True)
+# FIXME: add rerun frontend code
 
 def stream_listener(redis_client, stream_name, callback):
     while True:
@@ -66,15 +72,15 @@ def stream_listener(redis_client, stream_name, callback):
             for message_id, fields in messages:
                 for field_name, field_value in fields:
                     field_name_str = field_name.decode("utf-8")
-                    ms = field_name_str.split("-")[0]
-                    datetime = np.datetime64(ms, 'ns')
+                    timestamp = field_name_str.split("-")[0]
+                    dt = ms_to_datetime(int(timestamp))
                     values = []
                     for key, value in field_value.items():
                         value_str = value.decode("utf-8")
                         values.append(value_str)
                     data.append({
                         'id': message_id.decode("utf-8"),
-                        'timestamp': datetime,
+                        'timestamp': dt,
                         'team_name': values[0],
                         'bid': values[1]
                     })
@@ -82,8 +88,19 @@ def stream_listener(redis_client, stream_name, callback):
             # Create a DataFrame
             df = pd.DataFrame(data)
             df['timestamp'] = pd.to_datetime(df['timestamp'])
-            print(df)
-            st.session_state.data = df
+            df = df.set_index('timestamp')
+            
+            # add logic for choosing the best bid
+            df_sorted = df.sort_values(by='bid', ascending=False)
+            max_bid_index = df_sorted['bid'].idxmax()
+            max_bid = df.loc[max_bid_index, 'bid']
+            # add logic to update dashboard with latest data
+            if int(max_bid) > int(st.session_state.last_bid):
+                st.session_state.winning_team = df.loc[max_bid_index, 'team_name']
+                st.session_state.last_bid = int(max_bid) # df.loc[df['team_name'] == st.session_state.winning_team, 'bid']
+            
+            print(df_sorted)
+            st.session_state.data = df_sorted
             print("----------------------NEW----------------------")
             time.sleep(1)
         else:
@@ -102,7 +119,7 @@ t.start()
 def send_bid(auction_name, team_name, bid_amount):
     resp = r.xadd(
         f"auction:{auction_name}",
-        {"team": f"{team_name}", "bid": f"{bid_amount}"},
+        {"team": f"{team_name}", "bid": bid_amount},
     )
     return resp # >>> 1692629613374-0
 
