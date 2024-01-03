@@ -2,7 +2,7 @@ import streamlit as st
 import redis
 
 stream_name = "auction:jpls5"
-r = st.session_state.db
+#r = st.session_state.db
 
 #st.header("Team Auction Points")
 # FIXME: make this dynamic from DB

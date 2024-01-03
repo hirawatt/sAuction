@@ -1,5 +1,6 @@
 import hmac
 import streamlit as st
+import pandas as pd
 
 def check_password():
     """Returns `True` if the user had the correct password."""
@@ -29,3 +30,14 @@ if not check_password():
 
 # Admin Panel Access
 st.header("Admin Settings")
+
+# FIXME: make this data dynamic from db
+df = pd.DataFrame([["Team 1", "10000", "10000", "500", "0"], ["Team 2", "12000", "12000", "600", "0"]], columns=["Teams", "Starting Points", "Present Points", "Max Bid per Player", "Bonus Points"])
+
+edited_df = st.data_editor(
+    df,
+    disabled=["Starting Points", "Teams", "Max Bid per Player"],
+    hide_index=True,
+    use_container_width=True)
+
+#st.write(edited_df)
