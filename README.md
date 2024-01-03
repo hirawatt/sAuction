@@ -23,7 +23,7 @@ graph TB
     A & B & C <--> D
 ```
 
-## GUIDE To Use (sAuctions)
+## GUIDE To Use
 
 - Bidding Portal - https://biddings.streamlit.app/
 

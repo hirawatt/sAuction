@@ -34,16 +34,18 @@ def get_database_session():
         password=st.secrets['redis']['password'])
     return r
 
-r = get_database_session()
+if 'db' not in st.session_state:
+    st.session_state.db = get_database_session()
 
-# Auction Dashboard
-# FIXME: make this dynamic
+r = st.session_state.db
 stream_name = "auction:jpls5"
+
 if 'last_bid' not in st.session_state:
     st.session_state.last_bid = 100
 if 'winning_team' not in st.session_state:
     st.session_state.winning_team = "START BIDDING"
 
+# Auction Dashboard
 st.header("Winning Bid")
 c1, c2 = st.columns(2)
 c1.write("Winning Team")
@@ -121,24 +123,9 @@ def stream_listener(redis_client, stream_name, callback):
 def process_message(fields):
     print(fields)
 
-#stream_listener(r, stream_name, process_message)
-t = Thread(target=stream_listener, args=(r, stream_name, process_message))
-add_script_run_ctx(t)
-t.start()
-
-# testing
-def send_bid(auction_name, team_name, bid_amount):
-    resp = r.xadd(
-        f"auction:{auction_name}",
-        {"team": f"{team_name}", "bid": bid_amount},
-    )
-    return resp # >>> 1692629613374-0
+# #stream_listener(r, stream_name, process_message)
+# t = Thread(target=stream_listener, args=(r, stream_name, process_message))
+# add_script_run_ctx(t)
+# t.start()
 
 st.divider()
-if st.button("Test Bid"):
-    # bidding data
-    auction_name = "jpls5"
-    team_name = "Team 1"
-    bid_amount = 200
-    resp = send_bid(auction_name, team_name, bid_amount)
-    st.write(resp)
