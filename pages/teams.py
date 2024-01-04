@@ -15,8 +15,7 @@ except Exception as e:
 
 if st.button("Refresh", use_container_width=True):
     # get df from redis db
-    df = pd.DataFrame(msgpack.unpackb(r.get("default_df"), raw=False, strict_map_key=False))
-    
+    df = pd.DataFrame(msgpack.unpackb(r.get("new_df"), raw=False, strict_map_key=False))
     team_list = df["team"].tolist()
     team_points = df["present_points"].tolist()
     team_max_bid = df["max_bid_pp"].tolist()

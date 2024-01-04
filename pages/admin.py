@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import msgpack
 
+st.set_page_config("Admin Panel", layout="wide")
+
 def check_password():
     """Returns `True` if the user had the correct password."""
 
@@ -40,41 +42,73 @@ except Exception as e:
 
 # FIXME: make this data dynamic from db
 team_list = ["Team 1", "Team 2", "Team 3", "Team 4"]
-team_points = [10000, 10000, 13000, 15000]
-bonus_list = [0, 0, 0, 0]
+start_points = [10000, 10000, 13000, 15000]
+present_points = start_points
+bonus_points = [0, 0, 0, 0]
+total_bonus_points = bonus_points
+used_points = [0, 0, 0, 0]
+total_used_points = used_points
 # FIXME: calculate these
-team_max_bid = [i/20 for i in team_points]
-present_points = team_points
+team_max_bid = [i*0.2 for i in present_points]
 
-data = {"team": team_list, "start_points": team_points, "bonus": bonus_list, "present_points": present_points, "max_bid_pp": team_max_bid}
+data = {
+    "team": team_list,
+    "start_points": start_points,
+    "bonus_points": bonus_points,
+    "total_bonus_points": total_bonus_points,
+    "used_points": used_points,
+    "total_used_points": total_used_points,
+    "present_points": present_points,
+    "max_bid_pp": team_max_bid
+    }
+
 if 'df' not in st.session_state:
     st.session_state.df = pd.DataFrame(data)
 
-df = st.session_state.df
 edited_df = st.data_editor(
-    df,
-    disabled=["start_points", "team", "max_bid_pp"],
+    st.session_state.df,
+    disabled=["total_bonus_points", "total_used_points", "present_points", "max_bid_pp"],
     column_config={
         "team": "Team Name",
         "start_points": "Starting Points",
-        "bonus": st.column_config.NumberColumn(
-            "Bonus Points",
-            help="How much do you like this command (1-5)?",
-            min_value=0,
-            max_value=5000,
-            step=1000,
-            format="%d ⭐",
-            ),
+        "bonus_points": "Bonus Points",
+        "total_bonus_points": "Total BP",
+        "used_points": "Used Points",
+        "total_used_points": "Total UP",
         "present_points": "Present Points",
         "max_bid_pp": "Max Bid per Player",
     },
-    num_rows="dynamic",
+    num_rows="fixed", # FIXME: make this dynamic
     hide_index=True,
     use_container_width=True)
 
-if st.button("Update Data"):
-    # store df in redis db
-    r.set("default_df", msgpack.packb(edited_df.to_dict(), use_bin_type=True))
+# Data Processing for updated df
+def process_data(edited_df):
+    edited_df["total_bonus_points"] = edited_df["total_bonus_points"] + edited_df["bonus_points"]
+    edited_df["bonus_points"] = 0
+    edited_df["total_used_points"] = edited_df["total_used_points"] + edited_df["used_points"]
+    edited_df["used_points"] = 0
+    edited_df["present_points"] = edited_df["start_points"] + edited_df["total_bonus_points"] - edited_df["total_used_points"]
+    edited_df["max_bid_pp"] = [i*0.2 for i in edited_df["present_points"]]
+    return edited_df
+
+processed_df = process_data(edited_df)
+#st.dataframe(processed_df, use_container_width=True, hide_index=True)
+
+c1, c2, c3 = st.columns(3)
+# Reset Data & Load Default DB Data
+if c1.button("Reset to Default", use_container_width=True):
     df_retrieved = pd.DataFrame(msgpack.unpackb(r.get("default_df"), raw=False, strict_map_key=False))
+    st.session_state.df = df_retrieved
+    st.rerun()
+    
+c2.button("Refresh", use_container_width=True)
+# Update Data to DB
+if c3.button("Update Data", type="primary", use_container_width=True):
+    st.session_state.df = processed_df
+    # store df in redis db
+    r.set("new_df", msgpack.packb(processed_df.to_dict(), use_bin_type=True))
+    df_retrieved = pd.DataFrame(msgpack.unpackb(r.get("new_df"), raw=False, strict_map_key=False))
     with st.expander("Data"):
         st.dataframe(df_retrieved, use_container_width=True)
+    st.rerun()
